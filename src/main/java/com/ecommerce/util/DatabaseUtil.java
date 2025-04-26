@@ -1,3 +1,4 @@
+// This file has been deprecated. Use DBUtil.java instead.
 package com.ecommerce.util;
 
 import java.sql.Connection;
@@ -9,9 +10,6 @@ import java.io.File;
 // DatabaseUtil.java is deprecated and intentionally left blank. Use DBUtil.java instead.
 
 public class DatabaseUtil {
-    // Intentionally left blank.
-}
-
     private static final String DB_PATH = System.getProperty("user.home") + File.separator + "ecommerce.db";
     private static final String DB_URL = "jdbc:sqlite:" + DB_PATH;
     private static Connection connection = null;
@@ -20,22 +18,40 @@ public class DatabaseUtil {
         try {
             // Load SQLite JDBC driver
             Class.forName("org.sqlite.JDBC");
-            
-            // Ensure the database file exists and is writable
+
             File dbFile = new File(DB_PATH);
             if (!dbFile.exists()) {
                 dbFile.getParentFile().mkdirs();
+                // Create the database file by opening a connection
+                try (Connection conn = DriverManager.getConnection(DB_URL)) {
+                    // Read SQL from resource
+                    try (InputStream is = DatabaseUtil.class.getClassLoader().getResourceAsStream("sql/create_tables.sql")) {
+                        if (is == null) {
+                            throw new RuntimeException("Could not find create_tables.sql in resources");
+                        }
+                        String sql = new BufferedReader(new InputStreamReader(is))
+                                .lines().collect(java.util.stream.Collectors.joining("\n"));
+                        try (Statement stmt = conn.createStatement()) {
+                            for (String s : sql.split(";")) {
+                                if (!s.trim().isEmpty()) {
+                                    stmt.execute(s);
+                                }
+                            }
+                        }
+                    }
+                }
             }
             if (!dbFile.canWrite() && dbFile.exists()) {
                 throw new RuntimeException("Database file is not writable: " + DB_PATH);
             }
-            
-            // Initialize database by creating tables
+            // Initialize database by creating tables (in case of updates)
             initializeDatabase();
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("SQLite JDBC driver not found", e);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to initialize database", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create database from SQL script", e);
         }
     }
 
